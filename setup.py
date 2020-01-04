@@ -47,7 +47,12 @@ setup(
     packages=get_packages("sstarlette"),
     # package_data={"databases": ["py.typed"]},
     # data_files=[("", ["LICENSE.md"])],
-    install_requires=["starlette>=0.12.4", "pyjwt==1.7.1", "databases==0.2.6"],
+    install_requires=[
+        "starlette>=0.12.4",
+        "pyjwt==1.7.1",
+        "databases==0.2.6",
+        "pydantic[email]==1.2",
+    ],
     extras_require={"sentry": ["sentry-sdk"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
