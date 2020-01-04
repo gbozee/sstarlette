@@ -15,6 +15,7 @@ from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
+from starlette.routing import Route
 
 
 class SResult:
@@ -52,7 +53,13 @@ def build_token_backend(verified_user_callback):
 
 
 class SStarlette(Starlette):
-    def __init__(self, database_url: str, *args, replica_database_url=None, **kwargs):
+    def __init__(
+        self,
+        database_url: str,
+        replica_database_url=None,
+        service_layer: typing.Dict[str, typing.Any] = None,
+        **kwargs
+    ):
         self.database = databases.Database(database_url)
         self.replica_database = None
         if replica_database_url:
@@ -60,7 +67,19 @@ class SStarlette(Starlette):
         self.is_serverless = kwargs.pop("serverless", False)
         self.model_initializer = kwargs.pop("model_initializer", None)
         self.redis = None
-        super().__init__(*args, **kwargs)
+        routes = kwargs.pop("routes", [])
+        on_startup = kwargs.pop("on_startup", [])
+        on_shutdown = kwargs.pop("on_shutdown", [])
+        on_startup.append(self.startup)
+        on_shutdown.append(self.shutdown)
+        if service_layer:
+            additional_routes = [
+                self.build_view(key, **value) for key, value in service_layer.items()
+            ]
+            routes.extend(additional_routes)
+        super().__init__(
+            routes=routes, on_startup=on_startup, on_shutdown=on_shutdown, **kwargs
+        )
 
     def populate_middlewares(
         self,
@@ -162,7 +181,13 @@ class SStarlette(Starlette):
         if result.task:
             for i in result.task:
                 if type(i) in [list, tuple]:
-                    tasks.add_task(*i)
+                    try:
+                        dict_index = [type(o) for o in i].index(dict)
+                        kwarg_props = i[dict_index]
+                        args_props = i[0:dict_index]
+                        tasks.add_task(*args_props, **kwarg_props)
+                    except ValueError:
+                        tasks.add_task(*i)
                 else:
                     tasks.add_task(i)
         if redirect and redirect_key and result.data:
@@ -172,3 +197,43 @@ class SStarlette(Starlette):
         if result.data:
             _result.update(data=result.data)
         return self.json_response(_result, tasks=tasks, no_db=no_db)
+
+    def build_view(
+        self,
+        path,
+        func: typing.Callable,
+        methods=["POST"],
+        auth: str = None,
+        redirect=False,
+        redirect_key=None,
+    ):
+        async def f(request: Request):
+            post_data = None
+            headers = request.headers
+            user = None
+            if "POST" in methods:
+                post_data = await request.json()
+            if auth:
+                user = request.user
+            return await self.build_response(
+                func(
+                    post_data=post_data,
+                    query_params=request.query_params,
+                    headers=request.headers,
+                    user=user,
+                ),
+                redirect_key=redirect_key,
+                redirect=redirect,
+            )
+
+        function = f
+        if auth:
+            function = requires(auth)(f)
+        return Route(path, function, methods=methods)
+
+    async def startup(self):
+        await self.connect_db()
+
+    async def shutdown(self):
+        await self.disconnect_db()
+

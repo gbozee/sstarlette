@@ -290,7 +290,7 @@ def build_service_layer(
         email_verification = get_func_from_utils("email_verification")
         tasks = []
         if email_verification:
-            tasks.append(lambda: email_verification(email, callback_url=callback_url))
+            tasks.append([email_verification, email, dict(callback_url=callback_url)])
         return CreateUserResult(task=tasks)
 
     return {
