@@ -10,6 +10,7 @@ from starlette.authentication import (
     requires,
 )
 from starlette.background import BackgroundTasks
+from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -59,25 +60,35 @@ class SStarlette(Starlette):
         self.is_serverless = kwargs.pop("serverless", False)
         self.model_initializer = kwargs.pop("model_initializer", None)
         self.redis = None
-
         super().__init__(*args, **kwargs)
 
     def populate_middlewares(
-        self, auth_token_verify_user_callback=None, cors=True, sentry_dsn=None
-    ):
+        self,
+        auth_token_verify_user_callback=None,
+        cors=True,
+        sentry_dsn=None,
+        debug=False,
+    ) -> typing.List[Middleware]:
+        middlewares = []
         if auth_token_verify_user_callback:
             token_class = build_token_backend(auth_token_verify_user_callback)
-            self.add_middleware(
-                AuthenticationMiddleware, backend=token_class(), on_error=on_auth_error
+            middlewares.append(
+                Middleware(
+                    AuthenticationMiddleware,
+                    backend=token_class(),
+                    on_error=on_auth_error,
+                )
             )
         if cors:
-            self.add_middleware(
-                CORSMiddleware,
-                allow_methods=["*"],
-                allow_origins=["*"],
-                allow_headers=["*"],
+            middlewares.append(
+                Middleware(
+                    CORSMiddleware,
+                    allow_methods=["*"],
+                    allow_origins=["*"],
+                    allow_headers=["*"],
+                )
             )
-        if not self.debug:
+        if not debug:
             if sentry_dsn:
                 import sentry_sdk
                 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
@@ -88,8 +99,9 @@ class SStarlette(Starlette):
                     send_default_pii=True,
                     integrations=[SqlalchemyIntegration()],
                 )
-                self.add_middleware(SentryAsgiMiddleware)
+                middlewares.append(Middleware(SentryAsgiMiddleware))
                 print("Adding Sentry middleware to application")
+        return middlewares
 
     async def connect_db(self):
         started = False

@@ -48,7 +48,7 @@ setup(
     # package_data={"databases": ["py.typed"]},
     # data_files=[("", ["LICENSE.md"])],
     install_requires=[
-        "starlette>=0.12.4",
+        "starlette>=0.13.0",
         "pyjwt==1.7.1",
         "databases==0.2.6",
         "pydantic[email]==1.2",
