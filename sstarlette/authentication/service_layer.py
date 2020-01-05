@@ -19,34 +19,50 @@ class CreateUserResult:
         self.data = data
 
 
-def should_verify_provider(login_info: dict) -> bool:
-    verify = login_info.get("verify")
-    if verify == None:
-        verify = True
-    return verify
+class SettingsType:
+    REDIRECT_URL_ON_EMAIL_VERIFICATION: str
+    REDIRECT_ERROR_AS_JSON: bool
+    STAFF_ACCESS_CODE: str
+
+
+class BaseModelUtil:
+    klass = typing.Any
+    get_user: typing.Callable[..., typing.Coroutine]
+    create_user: typing.Callable[..., typing.Coroutine]
+
+
+BM = typing.TypeVar("BM", bound=BaseModelUtil)
 
 
 def build_service_layer(
-    settings, _util_klass: type, build_utils: typing.Callable
-) -> dict:
+    settings: SettingsType,
+    _util_klass: typing.Type[BM],
+    build_utils: typing.Callable[
+        ..., typing.Dict[str, typing.Callable[..., typing.Coroutine]]
+    ],
+) -> typing.Dict[str, typing.Callable[..., typing.Coroutine]]:
     class VerifiedUser(typing.NamedTuple):
-        user: _util_klass.klass
+        user: typing.Any
         auth_roles: typing.List[str]
 
         @property
-        def email(self):
+        def email(self) -> str:
             return self.user.email
 
-    def get_func_from_utils(func_name):
+    def get_func_from_utils(
+        func_name: str
+    ) -> typing.Optional[typing.Callable[..., typing.Coroutine]]:
         utils = build_utils()
         return utils.get(func_name)
 
     async def delete_user(token_user) -> CreateUserResult:
         record = await _util_klass.get_user(email=token_user["email"])
         if not record:
-            return CreateUserResult(errors={"msg": "Missing user record"})
+            return CreateUserResult(
+                errors={"msg": "Missing user record"}
+            )  # type: ignore
         await record.delete()
-        return CreateUserResult(data={"msg": "Done"})
+        return CreateUserResult(data={"msg": "Done"})  # type: ignore
 
     async def on_signup(
         data: dict, headers: typing.Union[dict, datastructures.Headers]
@@ -56,7 +72,7 @@ def build_service_layer(
         provider = ""
         bearer_token = None
         if not signup_info:
-            return CreateUserResult(errors={"msg": "Not Authorized"})
+            return CreateUserResult(errors={"msg": "Not Authorized"})  # type: ignore
         if "provider" in signup_info:
             provider = signup_info["provider"]
             auth_header = headers.get("g_authorization") or ""
@@ -73,18 +89,24 @@ def build_service_layer(
                     "staff": "Not Authorized",
                     "facebook": "Missing Authorization header",
                 }
-                return CreateUserResult(errors={"msg": auth_errors[provider]})
+                return CreateUserResult(
+                    errors={"msg": auth_errors[provider]}
+                )  # type: ignore
             if provider.lower() == "staff" and not data.get(
                 "department"
             ):  # no department staff
-                return CreateUserResult(errors={"msg": "Department for staff missing"})
+                return CreateUserResult(
+                    errors={"msg": "Department for staff missing"}
+                )  # type: ignore
             provider_verification = get_func_from_utils("provider_verification")
             if provider_verification:
                 error_by_provider = await provider_verification(
                     signup_info, bearer_token, data
                 )
                 if error_by_provider:
-                    return CreateUserResult(errors={"msg": error_by_provider[provider]})
+                    return CreateUserResult(
+                        errors={"msg": error_by_provider[provider]}
+                    )  # type: ignore
 
             if provider != "facebook":
                 email_verified = True
@@ -106,17 +128,21 @@ def build_service_layer(
                     tasks.append(task)
 
         if errors:
-            return CreateUserResult(errors={"errors": errors})
-        return CreateUserResult(data={"access_token": access_token}, task=tasks)
+            return CreateUserResult(errors={"errors": errors})  # type: ignore
+        return CreateUserResult(
+            data={"access_token": access_token}, task=tasks
+        )  # type: ignore
 
     async def reset_user_password(
         user: VerifiedUser, bearer_token: str, password=None, **kwargs
     ) -> CreateUserResult:
         validated_token = await user.user.validate_token(bearer_token)
         if not validated_token:
-            return CreateUserResult(errors={"msg": "Token is invalid or expired"})
+            return CreateUserResult(
+                errors={"msg": "Token is invalid or expired"}
+            )  # type: ignore
         if not password:
-            return CreateUserResult(errors={"msg": "Missing password"})
+            return CreateUserResult(errors={"msg": "Missing password"})  # type: ignore
         tasks = []
 
         async def callback():
@@ -125,7 +151,7 @@ def build_service_layer(
             await _user.save()
 
         tasks.append(callback)
-        return CreateUserResult(task=tasks)
+        return CreateUserResult(task=tasks)  # type: ignore
 
     async def on_login(params: dict, bearer_token) -> CreateUserResult:
         login_info = params.pop("login_info", {}) or {}

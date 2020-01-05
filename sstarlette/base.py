@@ -13,7 +13,7 @@ from starlette.background import BackgroundTasks
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request
+from starlette.requests import Request, HTTPConnection
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Route
 
@@ -36,7 +36,7 @@ def on_auth_error(request: Request, exc: Exception):
 
 def build_token_backend(verified_user_callback):
     class TokenBackend(AuthenticationBackend):
-        async def authenticate(self, request: Request):
+        async def authenticate(self, request: HTTPConnection):
             if "Authorization" not in request.headers:
                 return
 
@@ -126,7 +126,7 @@ class SStarlette(Starlette):
                 print("Adding Sentry middleware to application")
         return middlewares
 
-    async def connect_db(self):
+    async def connect_db(self) -> bool:
         started = False
         if self.database:
             if not self.database.is_connected:
@@ -136,8 +136,10 @@ class SStarlette(Starlette):
                 if not self.replica_database.is_connected:
                     await self.replica_database.connect()
             if self.model_initializer:
-                model_initializer(self.database, replica_database=self.replica_database)
-            return started
+                self.model_initializer(
+                    self.database, replica_database=self.replica_database
+                )
+        return started
 
     async def disconnect_db(self):
         if self.database:
@@ -206,13 +208,13 @@ class SStarlette(Starlette):
 
     def build_view(
         self,
-        path,
+        path: str,
         func: typing.Callable,
-        methods=["POST"],
+        methods: typing.List[str] = ["POST"],
         auth: str = None,
-        redirect=False,
-        redirect_key=None,
-        no_db=False,
+        redirect: bool = False,
+        redirect_key: str = None,
+        no_db: bool = False,
     ):
         async def f(request: Request):
             post_data = None
