@@ -35,6 +35,12 @@ def on_auth_error(request: Request, exc: Exception):
     return JSONResponse({"status": False, "msg": str(exc)}, status_code=403)
 
 
+async def not_authorized(request, exc):
+    return JSONResponse(
+        {"status": False, "msg": "Not Authorized"}, status_code=exc.status_code
+    )
+
+
 def build_token_backend(verified_user_callback):
     class TokenBackend(AuthenticationBackend):
         async def authenticate(self, request: HTTPConnection):
@@ -59,6 +65,8 @@ class SStarlette(Starlette):
         database_url: str,
         replica_database_url=None,
         sentry_dsn: str = None,
+        auth_token_verify_user_callback=None,
+        cors=True,
         service_layer: typing.Dict[str, typing.Any] = None,
         **kwargs
     ):
@@ -71,6 +79,15 @@ class SStarlette(Starlette):
                 self.replica_database = databases.Database(str(replica_database_url))
         self.is_serverless = kwargs.pop("serverless", False)
         self.model_initializer = kwargs.pop("model_initializer", None)
+        additional_middlewares = kwargs.pop("middleware", []) or []
+        middlewares = self.populate_middlewares(
+            auth_token_verify_user_callback,
+            cors=cors,
+            debug=kwargs.get("debug") or False,
+        )
+        middlewares.extend(additional_middlewares)
+        exception_handlers = kwargs.pop("exception_handlers", {})
+        exception_handlers = {403: not_authorized, **exception_handlers}
         self.redis = None
         routes = kwargs.pop("routes", [])
         on_startup = kwargs.pop("on_startup", [])
@@ -93,7 +110,12 @@ class SStarlette(Starlette):
             routes = additional_routes
             # routes.extend(additional_routes)
         super().__init__(
-            routes=routes, on_startup=on_startup, on_shutdown=on_shutdown, **kwargs
+            routes=routes,
+            middleware=middlewares,
+            exception_handlers=exception_handlers,
+            on_startup=on_startup,
+            on_shutdown=on_shutdown,
+            **kwargs
         )
 
     def populate_middlewares(

@@ -330,3 +330,95 @@ def build_service_layer(
         "verify-access-token": verify_access_token,
     }
 
+
+def build_view(service_layer, staff_key="StaffAuth"):
+    def get_token(headers: requests.Headers) -> str:
+        auth = headers["Authorization"]
+        bearer_token = auth.replace("Bearer", "").strip()
+        return bearer_token
+
+        # validate the token to see if it is expired
+
+    def get_bearer_token(params: dict, headers: requests.Headers):
+        login_info = params.get("login_info", {}) or {}
+        auth_key = staff_key
+        if "provider" in login_info:
+            auth_key = "g_authorization"
+        authorization = headers.get(auth_key) or ""
+        bearer_token = authorization.replace("Bearer", "").strip()
+        return bearer_token
+
+    async def delete_user(post_data, **kwargs) -> CreateUserResult:
+        return await service_layer["delete-user"](post_data)
+
+    async def forgot_password(**kwargs):
+        params = kwargs["query_params"]
+        email = params.get("email")
+        callback_url = params.get("callback_url")
+        return await service_layer["forgot-password"](email, callback_url)
+
+    async def signup(post_data, **kwargs):
+        return await service_layer["signup"](post_data, kwargs["headers"])
+
+    async def reset_password(post_data, **kwargs) -> CreateUserResult:
+        return await service_layer["reset-password"](
+            kwargs["user"], get_token(kwargs["headers"]), **post_data
+        )
+
+    async def login(post_data, **kwargs):
+        bearer_token = get_bearer_token(post_data, kwargs["headers"])
+        return await service_layer["login"](post_data, bearer_token)
+
+    async def on_email_confirmation(**kwargs) -> CreateUserResult:
+        params = kwargs["query_params"]
+        email = params.get("email") or ""
+        token = params.get("token")
+        callback_url = params.get("callback_url")
+        return await service_layer["verify-email"](
+            email=email, token=token, callback_url=callback_url
+        )
+
+    async def hijack_user(**kwargs) -> CreateUserResult:
+        # validate the token to see if it is expired
+        return await service_layer["hijack-user"](
+            kwargs["user"],
+            get_token(kwargs["headers"]),
+            email=kwargs["query_params"].get("email"),
+        )
+
+    return {
+        "/delete-user": {"func": delete_user, "methods": ["POST"]},
+        "/hijack-user": {"func": hijack_user, "methods": ["GET"], "auth": "staff"},
+        "/signup": {"func": signup, "methods": ["POST"]},
+        "/login": {"func": login, "methods": ["POST"]},
+        "/verify-email": {
+            "func": on_email_confirmation,
+            "methods": ["GET"],
+            "redirect": True,
+            "redirect_key": "redirect_url",
+        },
+        "/forgot-password": {"func": forgot_password, "methods": ["GET"]},
+        "/reset-password": {
+            "func": reset_password,
+            "methods": ["POST"],
+            "auth": "authenticated",
+        },
+    }
+
+
+def build_app(
+    settings, _util_klass, build_utils, routes=None, staff_key="StaffAuth", **kwargs
+):
+    from sstarlette.base import SStarlette
+
+    service_layer = build_service_layer(settings, _util_klass, build_utils)
+    return SStarlette(
+        str(settings.DATABASE_URL),
+        auth_token_verify_user_callback=service_layer["verify-access-token"],
+        serverless=settings.ENVIRONMENT == "serverless",
+        model_initializer=_util_klass.model_initializer,
+        service_layer=build_view(service_layer, staff_key=staff_key),
+        routes=routes,
+        **kwargs,
+    )
+
