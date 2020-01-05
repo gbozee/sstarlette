@@ -60,10 +60,12 @@ class SStarlette(Starlette):
         service_layer: typing.Dict[str, typing.Any] = None,
         **kwargs
     ):
-        self.database = databases.Database(database_url)
-        self.replica_database = None
-        if replica_database_url:
-            self.replica_database = databases.Database(str(replica_database_url))
+        self.database = None
+        if database_url:
+            self.database = databases.Database(database_url)
+            self.replica_database = None
+            if replica_database_url:
+                self.replica_database = databases.Database(str(replica_database_url))
         self.is_serverless = kwargs.pop("serverless", False)
         self.model_initializer = kwargs.pop("model_initializer", None)
         self.redis = None
@@ -124,22 +126,24 @@ class SStarlette(Starlette):
 
     async def connect_db(self):
         started = False
-        if not self.database.is_connected:
-            await self.database.connect()
-            started = True
-        if self.replica_database:
-            if not self.replica_database.is_connected:
-                await self.replica_database.connect()
-        if self.model_initializer:
-            model_initializer(self.database, replica_database=self.replica_database)
-        return started
+        if self.database:
+            if not self.database.is_connected:
+                await self.database.connect()
+                started = True
+            if self.replica_database:
+                if not self.replica_database.is_connected:
+                    await self.replica_database.connect()
+            if self.model_initializer:
+                model_initializer(self.database, replica_database=self.replica_database)
+            return started
 
     async def disconnect_db(self):
-        if self.database.is_connected:
-            await self.database.disconnect()
-        if self.replica_database:
-            if self.replica_database.is_connected:
-                await self.replica_database.disconnect()
+        if self.database:
+            if self.database.is_connected:
+                await self.database.disconnect()
+            if self.replica_database:
+                if self.replica_database.is_connected:
+                    await self.replica_database.disconnect()
 
     def json_response(
         self,
@@ -206,6 +210,7 @@ class SStarlette(Starlette):
         auth: str = None,
         redirect=False,
         redirect_key=None,
+        no_db=False,
     ):
         async def f(request: Request):
             post_data = None
@@ -220,10 +225,12 @@ class SStarlette(Starlette):
                     post_data=post_data,
                     query_params=request.query_params,
                     headers=request.headers,
+                    path_params=request.path_params,
                     user=user,
                 ),
                 redirect_key=redirect_key,
                 redirect=redirect,
+                no_db=no_db,
             )
 
         function = f
