@@ -113,18 +113,22 @@ class SStarlette(Starlette):
             )
         if not debug:
             if sentry_dsn:
-                import sentry_sdk
                 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
-                from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
-                sentry_sdk.init(
-                    dsn=sentry_dsn,
-                    send_default_pii=True,
-                    integrations=[SqlalchemyIntegration()],
-                )
                 middlewares.append(Middleware(SentryAsgiMiddleware))
                 print("Adding Sentry middleware to application")
         return middlewares
+
+    def initialize_sentry(self, sentry_dsn):
+        import sentry_sdk
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+        print(sentry_dsn)
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            send_default_pii=True,
+            integrations=[SqlalchemyIntegration()],
+        )
 
     async def connect_db(self) -> bool:
         started = False
