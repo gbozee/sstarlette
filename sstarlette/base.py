@@ -2,6 +2,7 @@ import typing
 
 import databases
 import jwt
+from sstarlette.sentry_patch import serverless_function
 from starlette.applications import Starlette
 from starlette.authentication import (
     AuthCredentials,
@@ -13,7 +14,7 @@ from starlette.background import BackgroundTasks
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request, HTTPConnection
+from starlette.requests import HTTPConnection, Request
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Route
 
@@ -78,7 +79,12 @@ class SStarlette(Starlette):
             additional_routes = [
                 self.build_view(key, **value) for key, value in service_layer.items()
             ]
-            additional_routes.extend(routes)
+            additional_routes.extend(
+                [
+                    Route(x.path, serverless_function(x.endpoint), methods=x.methods)
+                    for x in routes
+                ]
+            )
             routes = additional_routes
             # routes.extend(additional_routes)
         super().__init__(
@@ -122,13 +128,12 @@ class SStarlette(Starlette):
     def initialize_sentry(self, sentry_dsn):
         import sentry_sdk
         from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-
-        print(sentry_dsn)
-        sentry_sdk.init(
-            dsn=sentry_dsn,
-            send_default_pii=True,
-            integrations=[SqlalchemyIntegration()],
-        )
+        if sentry_dsn:
+            sentry_sdk.init(
+                dsn=sentry_dsn,
+                send_default_pii=True,
+                integrations=[SqlalchemyIntegration()],
+            )
 
     async def connect_db(self) -> bool:
         started = False
@@ -244,11 +249,10 @@ class SStarlette(Starlette):
         function = f
         if auth:
             function = requires(auth)(f)
-        return Route(path, function, methods=methods)
+        return Route(path, serverless_function(function), methods=methods)
 
     async def startup(self):
         await self.connect_db()
 
     async def shutdown(self):
         await self.disconnect_db()
-
