@@ -78,7 +78,9 @@ class SStarlette(Starlette):
             additional_routes = [
                 self.build_view(key, **value) for key, value in service_layer.items()
             ]
-            routes.extend(additional_routes)
+            additional_routes.extend(routes)
+            routes = additional_routes
+            # routes.extend(additional_routes)
         super().__init__(
             routes=routes, on_startup=on_startup, on_shutdown=on_shutdown, **kwargs
         )
