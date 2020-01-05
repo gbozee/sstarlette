@@ -58,10 +58,12 @@ class SStarlette(Starlette):
         self,
         database_url: str,
         replica_database_url=None,
+        sentry_dsn: str = None,
         service_layer: typing.Dict[str, typing.Any] = None,
         **kwargs
     ):
         self.database = None
+        self.sentry_dsn = sentry_dsn
         if database_url:
             self.database = databases.Database(database_url)
             self.replica_database = None
@@ -95,11 +97,7 @@ class SStarlette(Starlette):
         )
 
     def populate_middlewares(
-        self,
-        auth_token_verify_user_callback=None,
-        cors=True,
-        sentry_dsn=None,
-        debug=False,
+        self, auth_token_verify_user_callback=None, cors=True, debug=False
     ) -> typing.List[Middleware]:
         middlewares = []
         if auth_token_verify_user_callback:
@@ -121,20 +119,20 @@ class SStarlette(Starlette):
                 )
             )
         if not debug:
-            if sentry_dsn:
+            if self.sentry_dsn:
                 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
                 middlewares.append(Middleware(SentryAsgiMiddleware))
                 print("Adding Sentry middleware to application")
         return middlewares
 
-    def initialize_sentry(self, sentry_dsn):
+    def initialize_sentry(self):
         import sentry_sdk
         from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
-        if sentry_dsn:
+        if self.sentry_dsn:
             sentry_sdk.init(
-                dsn=sentry_dsn,
+                dsn=self.sentry_dsn,
                 send_default_pii=True,
                 integrations=[SqlalchemyIntegration()],
             )
