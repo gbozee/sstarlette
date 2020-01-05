@@ -79,12 +79,15 @@ class SStarlette(Starlette):
             additional_routes = [
                 self.build_view(key, **value) for key, value in service_layer.items()
             ]
-            additional_routes.extend(
-                [
-                    Route(x.path, serverless_function(x.endpoint), methods=x.methods)
-                    for x in routes
-                ]
-            )
+            if self.is_serverless:
+                additional_routes.extend(
+                    [
+                        Route(
+                            x.path, serverless_function(x.endpoint), methods=x.methods
+                        )
+                        for x in routes
+                    ]
+                )
             routes = additional_routes
             # routes.extend(additional_routes)
         super().__init__(
@@ -128,6 +131,7 @@ class SStarlette(Starlette):
     def initialize_sentry(self, sentry_dsn):
         import sentry_sdk
         from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
         if sentry_dsn:
             sentry_sdk.init(
                 dsn=sentry_dsn,
@@ -249,7 +253,9 @@ class SStarlette(Starlette):
         function = f
         if auth:
             function = requires(auth)(f)
-        return Route(path, serverless_function(function), methods=methods)
+        if self.is_serverless:
+            function = serverless_function(function)
+        return Route(path, function, methods=methods)
 
     async def startup(self):
         await self.connect_db()
