@@ -180,7 +180,7 @@ def build_service_layer(
         if provider:
             # authentication attempt through google
             if provider.lower() in ["google", "facebook"] and not bearer_token:
-                auth_errors = {"google": "Missing Authorization header"}
+                auth_errors = {"google": "Missing Authorization header","facebook":"Missing Authorization header"}
                 return CreateUserResult(errors={"msg": auth_errors[provider]})
             provider_verification = get_func_from_utils("provider_verification")
             if provider_verification:
@@ -194,6 +194,7 @@ def build_service_layer(
                     {"email": email.strip()},
                 )
                 if not error_by_provider:
+                    # when an error occurs
                     return CreateUserResult(errors={"msg": "Verification failed"})
 
         # phone number authentication
