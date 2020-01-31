@@ -193,8 +193,8 @@ def build_service_layer(
                     bearer_token,
                     {"email": email.strip()},
                 )
-                if error_by_provider:
-                    return CreateUserResult(errors={"msg": error_by_provider[provider]})
+                if not error_by_provider:
+                    return CreateUserResult(errors={"msg": "Verification failed"})
 
         # phone number authentication
         if number and not endpoint:
