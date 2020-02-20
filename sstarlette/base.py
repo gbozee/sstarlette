@@ -61,7 +61,7 @@ def build_token_backend(verified_user_callback):
 class SStarlette(Starlette):
     def __init__(
         self,
-        database_url: str=None,
+        database_url: str = None,
         replica_database_url=None,
         sentry_dsn: str = None,
         auth_token_verify_user_callback=None,
@@ -73,6 +73,7 @@ class SStarlette(Starlette):
         self.sentry_dsn = sentry_dsn
         if database_url:
             import databases
+
             self.database = databases.Database(database_url)
             self.replica_database = None
             if replica_database_url:
@@ -248,11 +249,14 @@ class SStarlette(Starlette):
         redirect: bool = False,
         redirect_key: str = None,
         no_db: bool = False,
+        skip: bool = False,
     ):
         async def f(request: Request):
             post_data = None
             headers = request.headers
             user = None
+            if skip:
+                return await func(request)
             if "POST" in methods:
                 post_data = await request.json()
             if auth:
@@ -264,7 +268,6 @@ class SStarlette(Starlette):
                     headers=request.headers,
                     path_params=request.path_params,
                     user=user,
-                    request=request,
                 ),
                 redirect_key=redirect_key,
                 redirect=redirect,
