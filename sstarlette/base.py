@@ -1,6 +1,5 @@
 import typing
 
-import databases
 import jwt
 from sstarlette.sentry_patch import serverless_function
 from starlette.applications import Starlette
@@ -62,7 +61,7 @@ def build_token_backend(verified_user_callback):
 class SStarlette(Starlette):
     def __init__(
         self,
-        database_url: str,
+        database_url: str=None,
         replica_database_url=None,
         sentry_dsn: str = None,
         auth_token_verify_user_callback=None,
@@ -73,6 +72,7 @@ class SStarlette(Starlette):
         self.database = None
         self.sentry_dsn = sentry_dsn
         if database_url:
+            import databases
             self.database = databases.Database(database_url)
             self.replica_database = None
             if replica_database_url:
