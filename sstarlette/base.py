@@ -256,7 +256,12 @@ class SStarlette(Starlette):
             headers = request.headers
             user = None
             if skip:
-                return await func(request)
+                return await self.build_response(
+                    func(request),
+                    redirect_key=redirect_key,
+                    redirect=redirect,
+                    no_db=no_db,
+                )
             if "POST" in methods:
                 post_data = await request.json()
             if auth:
@@ -268,7 +273,7 @@ class SStarlette(Starlette):
                     headers=request.headers,
                     path_params=request.path_params,
                     user=user,
-                    request=request
+                    request=request,
                 ),
                 redirect_key=redirect_key,
                 redirect=redirect,
