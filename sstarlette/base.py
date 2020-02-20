@@ -268,6 +268,7 @@ class SStarlette(Starlette):
                     headers=request.headers,
                     path_params=request.path_params,
                     user=user,
+                    request=request
                 ),
                 redirect_key=redirect_key,
                 redirect=redirect,
