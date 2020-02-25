@@ -47,13 +47,16 @@ setup(
     packages=get_packages("sstarlette"),
     # package_data={"databases": ["py.typed"]},
     # data_files=[("", ["LICENSE.md"])],
-    install_requires=[
-        "starlette>=0.13.0",
-        "pyjwt==1.7.1",
-        "pydantic[email]==1.2",
-    ],
-    extras_require={"sentry": ["sentry-sdk"],"sql":[
-        "databases==0.2.6",]},
+    install_requires=["starlette>=0.13.0", "pyjwt==1.7.1", "pydantic[email]==1.2",],
+    extras_require={
+        "sentry": ["sentry-sdk"],
+        "sql": [
+            "databases[sqlite]==0.2.6",
+            # "orm==0.0.8 @ https://github.com/gbozee/dalchemy/archive/0.0.8.zip",
+        ],
+        "test": ["pytest", "httpx", "pytest-asyncio", "pytest-mock", "pdbpp"],
+    },
+    dependency_links=["https://github.com/gbozee/dalchemy/archive/0.0.8.zip"],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Web Environment",

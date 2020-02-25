@@ -2,12 +2,19 @@ import asyncio
 import functools
 import inspect
 import sys
+import typing
+
+from starlette.endpoints import HTTPEndpoint
+from starlette.middleware import Middleware
 
 from sentry_sdk._compat import reraise
 from sentry_sdk._types import MYPY
 from sentry_sdk.hub import Hub
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from sentry_sdk.utils import event_from_exception
-from starlette.endpoints import HTTPEndpoint
+from sstarlette.db.base import DBAbstraction
+
+from .base import MonitoringBase
 
 if MYPY:
     from typing import Any
@@ -119,3 +126,22 @@ def _flush_client():
     hub = Hub.current
     if hub is not None:
         hub.flush()
+
+
+class SentryMonitoring(MonitoringBase):
+    def __init__(self, sentry_dsn):
+        self.sentry_dsn = sentry_dsn
+
+    def middleware(self):
+        return Middleware(SentryAsgiMiddleware)
+
+    def initialize(self, db_layer: DBAbstraction):
+        db_layer.track(self.sentry_dsn)
+
+    def build_routes(self, routes: typing.List[Route], is_serverless=False):
+        if is_serverless:
+            return [
+                Route(x.path, serverless_function(x.endpoint), methods=x.methods)
+                for x in routes
+            ]
+        return super().build_routes(routes)
