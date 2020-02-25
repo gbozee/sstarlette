@@ -15,7 +15,6 @@ from sstarlette.base import ServiceResult
 from sstarlette.sql import SStarlette
 
 environ["TESTING"] = "True"
-# environ["DATABASE_URL"] = "postgresql://staging:e_bots1991@dev.tuteria.com/staging_db"
 DATABASE_URL = "sqlite:///app.db"
 
 
