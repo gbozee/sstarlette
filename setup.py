@@ -51,10 +51,9 @@ setup(
     extras_require={
         "sentry": ["sentry-sdk"],
         "sql": [
-            "databases[sqlite]==0.2.6",
+            "databases==0.2.6",
             # "orm==0.0.8 @ https://github.com/gbozee/dalchemy/archive/0.0.8.zip",
         ],
-        "test": ["pytest", "httpx", "pytest-asyncio", "pytest-mock", "pdbpp"],
     },
     dependency_links=["https://github.com/gbozee/dalchemy/archive/0.0.8.zip"],
     classifiers=[

@@ -25,6 +25,7 @@ class SResult:
 
 
 class DBAbstraction:
+
     async def connect(self) -> bool:
         raise NotImplementedError
 

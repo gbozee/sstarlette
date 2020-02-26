@@ -1,5 +1,7 @@
-import pytest
+import asyncio
+
 import httpx
+import pytest
 
 
 @pytest.mark.asyncio
@@ -17,13 +19,6 @@ async def test_default_route(client: httpx.AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_with_error(client: httpx.AsyncClient):
-    response = await client.get("/with-error")
-    assert response.status_code == 400
-    assert response.json() == {"status": False, "msg": "Bad info"}
-
-
-@pytest.mark.asyncio
 async def test_with_background(client: httpx.AsyncClient, mocker):
     mocked = mocker.patch("utils.mock_func")
     response = await client.get("/with-background")
@@ -38,3 +33,27 @@ async def test_with_background(client: httpx.AsyncClient, mocker):
 async def test_with_redirect(client: httpx.AsyncClient):
     response = await client.get("/with-redirect", allow_redirects=False)
     assert response.status_code == 301
+
+
+@pytest.mark.asyncio
+async def test_change_response_format(client):
+    response = await client.get("with-error")
+    assert response.status_code == 400
+    assert response.json() == {"msg": "Bad info"}
+
+
+@pytest.mark.asyncio
+async def test_authenticated_route(client):
+    response = await client.get(
+        "/protected", headers={"Authorization": "Bearer Not Authorized 22"}
+    )
+    assert response.status_code == 400
+    assert response.text == "Not Authorized"
+    response = await client.get(
+        "/protected", headers={"Authorization": "Bearer Allowed User"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": True,
+        "data": {"name": "Shola", "roles": ["authenticated", "admin"]},
+    }

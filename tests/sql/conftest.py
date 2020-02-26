@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import typing
 
 import databases
 import httpx
@@ -8,17 +9,18 @@ import pytest
 import sqlalchemy
 from orm import Base, utils
 from pydantic import EmailStr
+from starlette.authentication import BaseUser, SimpleUser
 from starlette.config import environ
 from starlette.testclient import TestClient
 
 from sstarlette.base import ServiceResult
-from sstarlette.sql import SStarlette
+from sstarlette.sql import SStarlette, VerifiedUser
 
 environ["TESTING"] = "True"
 DATABASE_URL = "sqlite:///app.db"
 
 
-class User(Base):
+class User(Base, BaseUser):
     full_name: str
     email: EmailStr
     is_active: bool = True
@@ -30,6 +32,11 @@ class User(Base):
             "full_name": {"index": True},
             "email": {"index": True, "unique": True},
         }
+
+
+class AuthorizedUser(typing.NamedTuple):
+    auth_roles: typing.List[str]
+    user: User
 
 
 def init_tables(database, replica_database=None):
@@ -46,31 +53,50 @@ async def with_error(**kwargs):
     return ServiceResult(errors={"msg": "Bad info"})
 
 
-async def with_background_task(**kwargs):
-    query_params = kwargs.get("query_params")
-    keyword = query_params.get("keyword")
-    if keyword:
-        return ServiceResult(
-            data={"result": "processing"}, task=[[mock_func, 22, dict(age=33)]]
-        )
-    return ServiceResult(data={"result": "processing"}, task=[[mock_func, 2]])
+async def bg(**kwargs):
+    return await User.objects.create(**kwargs)
+
+
+async def with_background_task(post_data, **kwargs):
+    return ServiceResult(data={"result": "processing"}, task=[[bg, post_data]])
 
 
 async def with_redirect(**kwargs) -> ServiceResult:
     return ServiceResult(data={"name": "http://www.google.com"})
 
 
+async def verify_access_token(bearer_token, **kwargs) -> AuthorizedUser:
+    user = await User.objects.get(email=bearer_token)
+    if not user:
+        raise ValueError
+    return AuthorizedUser(auth_roles=["authenticated"], user=user)
+
+
+async def protected_route(user=None, **kwargs):
+    return ServiceResult(data=user.full_name)
+
+
 service_layer = {
     "/service": {"func": sample_service, "methods": ["GET"]},
     "/with-error": {"func": with_error, "methods": ["GET"]},
-    "/with-background": {"func": with_background_task, "methods": ["GET"]},
+    "/with-background": {"func": with_background_task, "methods": ["POST"]},
     "/with-redirect": {
         "func": with_redirect,
         "methods": ["GET"],
         "redirect": True,
         "redirect_key": "name",
     },
+    "/protected": {
+        "func": protected_route,
+        "auth": "authenticated",
+        "methods": ["GET"],
+    },
+    "/skip-db": {"func": with_redirect, "methods": ["GET"], "no_db": True},
 }
+
+
+def default_callback(kls, verified_user: AuthorizedUser):
+    return kls(verified_user.auth_roles), verified_user.user
 
 
 @pytest.fixture
@@ -87,6 +113,8 @@ def app(client_app):
             model_initializer=init_tables,
             service_layer=service_layer,
             as_app=as_app,
+            auth_result_callback=default_callback,
+            auth_token_verify_user_callback=verify_access_token,
             **kwargs
         )
 
@@ -95,12 +123,7 @@ def app(client_app):
 
 @pytest.fixture
 def client(app):
-    return app(
-        as_app=False,
-        kls=SStarlette,
-        database_url=DATABASE_URL,
-        model_initializer=init_tables,
-    )
+    return app(as_app=False)
     # return httpx.Client(app=app,base_url="http://test_server")
     # return TestClient(app, raise_server_exceptions=True)
 

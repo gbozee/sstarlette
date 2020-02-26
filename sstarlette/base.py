@@ -1,8 +1,9 @@
 import typing
 
-import jwt
 from starlette.applications import Starlette
 from starlette.authentication import requires
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import HTTPConnection, Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
@@ -45,6 +46,7 @@ class SStarlette(Starlette):
                 is_serverless=self.is_serverless,
             )
         routes = additional_routes
+
         super().__init__(
             routes=routes, **kwargs,
         )

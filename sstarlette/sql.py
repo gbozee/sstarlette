@@ -1,21 +1,10 @@
 import typing
 
-import jwt
-from starlette.applications import Starlette
-from starlette.authentication import (
-    AuthCredentials,
-    AuthenticationBackend,
-    AuthenticationError,
-)
-from starlette.middleware import Middleware
-from starlette.middleware.authentication import AuthenticationMiddleware
-from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import HTTPConnection, Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
-
 from sstarlette.base import RouteType
-from sstarlette.base import SStarlette as BaseStarlette
+from sstarlette.with_middleware import SStarlette as BaseStarlette
 from sstarlette.db.sql import SQLDataAbstraction
 from sstarlette.logging.base import MonitoringBase
 
@@ -30,52 +19,12 @@ async def not_authorized(request, exc):
     )
 
 
-def build_token_backend(verified_user_callback):
-    class TokenBackend(AuthenticationBackend):
-        async def authenticate(self, request: HTTPConnection):
-            if "Authorization" not in request.headers:
-                return
-
-            auth = request.headers["Authorization"]
-            bearer_token = auth.replace("Bearer", "").strip()
-            try:
-                verified_user = await verified_user_callback(bearer_token)
-            except (jwt.exceptions.DecodeError, ValueError, KeyError) as e:
-                raise AuthenticationError("Invalid token")
-            else:
-                return AuthCredentials(verified_user.auth_roles), verified_user
-
-    return TokenBackend
+class VerifiedUser(typing.NamedTuple):
+    auth_roles: typing.List[str]
 
 
-def populate_middlewares(
-    auth_token_verify_user_callback=None,
-    cors=True,
-    debug=False,
-    monitoring_middleware: typing.Optional[Middleware] = None,
-) -> typing.List[Middleware]:
-    middlewares = []
-    if auth_token_verify_user_callback:
-        token_class = build_token_backend(auth_token_verify_user_callback)
-        middlewares.append(
-            Middleware(
-                AuthenticationMiddleware, backend=token_class(), on_error=on_auth_error,
-            )
-        )
-    if cors:
-        middlewares.append(
-            Middleware(
-                CORSMiddleware,
-                allow_methods=["*"],
-                allow_origins=["*"],
-                allow_headers=["*"],
-            )
-        )
-    if not debug:
-        if monitoring_middleware:
-            middlewares.append(monitoring_middleware)
-            print("Adding Sentry middleware to application")
-    return middlewares
+def default_callback(kls, verified_user: VerifiedUser):
+    return kls(verified_user.auth_roles), verified_user
 
 
 class SStarlette(BaseStarlette):
@@ -85,7 +34,7 @@ class SStarlette(BaseStarlette):
         sentry_dsn: str = None,
         replica_database_url=None,
         auth_token_verify_user_callback=None,
-        cors=True,
+        auth_result_callback=default_callback,
         **kwargs,
     ):
         model_initializer = kwargs.pop("model_initializer", None)
@@ -103,14 +52,6 @@ class SStarlette(BaseStarlette):
             monitoring_layer = MonitoringBase()
         self.redis = None
 
-        additional_middlewares = kwargs.pop("middleware", []) or []
-        middlewares = populate_middlewares(
-            auth_token_verify_user_callback,
-            cors=cors,
-            debug=kwargs.get("debug") or False,
-            monitoring_middleware=monitoring_layer.middleware(),
-        )
-        middlewares.extend(additional_middlewares)
         exception_handlers = kwargs.pop("exception_handlers", {})
         exception_handlers = {403: not_authorized, **exception_handlers}
         on_startup = kwargs.pop("on_startup", [])
@@ -122,9 +63,12 @@ class SStarlette(BaseStarlette):
             db_layer,
             monitoring_layer,
             exception_handlers=exception_handlers,
-            middleware=middlewares,
             on_startup=on_startup,
             on_shutdown=on_shutdown,
+            cors=True,
+            auth_token_verify_user_callback=auth_token_verify_user_callback,
+            on_auth_error=on_auth_error,
+            auth_result_callback=auth_result_callback,
             **kwargs,
         )
 
