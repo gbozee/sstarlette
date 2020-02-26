@@ -1,0 +1,8 @@
+-e .
+databases[sqlite]==0.2.6
+https://github.com/gbozee/dalchemy/archive/0.0.8.zip
+pytest 
+pytest-mock
+pytest-django 
+httpx==0.11.1
+pdbpp
