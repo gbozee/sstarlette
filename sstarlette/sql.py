@@ -38,10 +38,12 @@ class SStarlette(BaseStarlette):
         **kwargs,
     ):
         model_initializer = kwargs.pop("model_initializer", None)
-
+        replica = replica_database_url
+        if replica_database_url:
+            replica = str(replica_database_url)
         db_layer = SQLDataAbstraction(
             database_url,
-            replica_database_url=replica_database_url,
+            replica_database_url=replica,
             model_initializer=model_initializer,
         )
         if sentry_dsn:
