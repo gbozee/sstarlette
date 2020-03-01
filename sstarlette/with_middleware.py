@@ -27,13 +27,17 @@ def build_token_backend(
     verified_user_callback,
     result_callback: typing.Callable = default_callback,
     auth_error_msg="Invalid token",
+    enforce=False,
 ):
     class TokenBackend(AuthenticationBackend):
         async def authenticate(self, request: HTTPConnection):
             if "Authorization" not in request.headers:
-                return
-
-            auth = request.headers["Authorization"]
+                if not enforce:
+                    return
+            auth = request.headers.get("Authorization")
+            if enforce:
+                if not auth:
+                    raise AuthenticationError(auth_error_msg)
             bearer_token = auth.replace("Bearer", "").strip()
             try:
                 verified_user = await verified_user_callback(bearer_token)
@@ -53,6 +57,7 @@ def populate_middlewares(
     monitoring_middleware: typing.Optional[Middleware] = None,
     auth_result_callback=default_callback,
     auth_error_msg="Invalid token",
+    enforce=False,
     on_auth_error=None,
 ) -> typing.List[Middleware]:
     middlewares = []
@@ -61,6 +66,7 @@ def populate_middlewares(
             auth_token_verify_user_callback,
             result_callback=auth_result_callback,
             auth_error_msg=auth_error_msg,
+            enforce=enforce,
         )
         middlewares.append(
             Middleware(
@@ -93,6 +99,7 @@ class SStarlette(BaseStarlette):
         auth_result_callback=default_callback,
         on_auth_error=None,
         auth_error_msg="Invalid token",
+        enforce_auth=False,
         **kwargs,
     ):
         additional_middlewares = kwargs.pop("middleware", []) or []
@@ -106,6 +113,7 @@ class SStarlette(BaseStarlette):
             monitoring_middleware=m_ware.middleware(),
             on_auth_error=on_auth_error,
             auth_result_callback=auth_result_callback,
+            enforce=enforce_auth,
             auth_error_msg=auth_error_msg,
         )
         middlewares.extend(additional_middlewares)

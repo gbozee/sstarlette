@@ -2,6 +2,8 @@ import typing
 
 from starlette.authentication import AuthCredentials, SimpleUser
 
+from sstarlette.types import BaseModelType
+
 
 class VerifiedUser(typing.NamedTuple):
     user: typing.Any
@@ -49,7 +51,7 @@ ProfileType = typing.Tuple[
 ]
 
 
-class UserModel:
+class UserModel(BaseModelType):
     async def get_user(self, post_data: PostDataType) -> UserTokenType:
         raise NotImplementedError
 
@@ -98,9 +100,6 @@ class UserModel:
 
     async def hijack_user(self, email: str) -> typing.Optional[str]:
         ...
-
-    async def verify_access_token(self, bearer_token: str) -> VerifiedUser:
-        raise NotImplementedError
 
     def auth_result_callback(self, kls, verified_user: VerifiedUser):
         return kls(verified_user.auth_roles), SimpleUser(verified_user.user)
