@@ -41,7 +41,7 @@ def build_service_layer(_util_klass: NotificationLayer):
         errors, task, data = await _util_klass.validate_and_send_email(
             to, _from=_from, context=context
         )
-        if error:
+        if errors:
             return ServiceResult(errors=errors)
         return ServiceResult(data=data, task=[task])
 
@@ -61,12 +61,12 @@ def build_service_layer(_util_klass: NotificationLayer):
         return ServiceResult(data=data, task=[task])
 
     async def send_phone_verification(post_data, **kwargs):
-        phone_no = post_data.get("number")
-        email = post_data.get("email")
+        phone_no = post_data.pop("number", None)
+        email = post_data.pop("email", None)
         if not phone_no:
             return ServiceResult({"msg": "Missing phone number"})
         error, task, data = await _util_klass.send_phone_verification_code(
-            phone_no, email=email
+            phone_no, email=email, **post_data
         )
         if error:
             return ServiceResult(errors=error)
@@ -82,7 +82,7 @@ def build_service_layer(_util_klass: NotificationLayer):
             return ServiceResult(
                 errors={"msg": "Missing phone number or verification code"}
             )
-        error = await _util_klass.confirm_phone_no(phone_no, validation_code)
+        error = await _util_klass.confirm_phone_no(phone_no, verification_code)
         if error:
             return ServiceResult(errors=error)
         return ServiceResult(data={"msg": "Phone number verified"})

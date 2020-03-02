@@ -7,6 +7,7 @@ from starlette.authentication import (
     AuthenticationBackend,
     AuthenticationError,
 )
+from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
@@ -38,6 +39,10 @@ def build_token_backend(
             if enforce:
                 if not auth:
                     raise AuthenticationError(auth_error_msg)
+                    # raise HTTPException(403,"Not Authorized")
+                    # return JSONResponse(
+                    #     {"status": False, "msg": "Not Authorized"}, status_code=403
+                    # )
             bearer_token = auth.replace("Bearer", "").strip()
             try:
                 verified_user = await verified_user_callback(bearer_token)
@@ -120,4 +125,3 @@ class SStarlette(BaseStarlette):
         super().__init__(
             db_layer, monitoring_layer, middleware=middlewares, **kwargs,
         )
-

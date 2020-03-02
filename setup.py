@@ -54,6 +54,8 @@ setup(
             "databases==0.2.6",
             # "orm==0.0.8 @ https://github.com/gbozee/dalchemy/archive/0.0.8.zip",
         ],
+        "notification": ["jinja2"],
+        "twilio": ["twilio==6.35.4", "sendgrid==6.1.2"],
     },
     dependency_links=["https://github.com/gbozee/dalchemy/archive/0.0.8.zip"],
     classifiers=[
