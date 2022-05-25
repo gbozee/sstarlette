@@ -49,7 +49,7 @@ setup(
     # data_files=[("", ["LICENSE.md"])],
     install_requires=[
         "starlette>=0.13.0",
-        "pyjwt==1.7.1",
+        "pyjwt==2.4.0",
         "pydantic[email]==1.2",
     ],
     extras_require={"sentry": ["sentry-sdk"],"sql":[
